@@ -10,3 +10,6 @@ target/
 .settings/
 .classpath
 dependency-reduced-pom.xml
+test_environment/nginx/logs/*
+test_environment/prometheus-data/data/*
+test_environment/pushgw/data/data
