@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 1m
+  evaluation_interval: 1m
+
+scrape_configs:
+  - job_name: 'pushgw'
+    scheme: http
+    scrape_timeout: 45s
+    static_configs:
+      - targets: ['pushgw:9091']
+        labels:
+          environment: staging
+          alias: astra-pushgw
+          cluster: astra
+alerting:
+
+rule_files:

@@ -20,6 +20,7 @@
     <module>collector</module>
     <module>jmx_prometheus_httpserver</module>
     <module>jmx_prometheus_javaagent</module>
+    <module>jmx_prometheus_javaagent_pushgw</module>
   </modules>
 
   <distributionManagement>
@@ -55,8 +56,8 @@
               <artifactId>maven-compiler-plugin</artifactId>
               <version>2.3.2</version>
               <configuration>
-                  <source>1.6</source>
-                  <target>1.6</target>
+                  <source>1.8</source>
+                  <target>1.8</target>
               </configuration>
           </plugin>
           <plugin>

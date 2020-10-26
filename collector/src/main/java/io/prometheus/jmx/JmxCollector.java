@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
+
 import static java.lang.String.format;
 
 public class JmxCollector extends Collector implements Collector.Describable {
@@ -69,9 +70,21 @@ public class JmxCollector extends Collector implements Collector.Describable {
 
     private Config config;
     private File configFile;
+    private List<String> extraLabelsNames;
+    private List<String> extraLabelsValues;
     private long createTimeNanoSecs = System.nanoTime();
 
     private final JmxMBeanPropertyCache jmxMBeanPropertyCache = new JmxMBeanPropertyCache();
+
+
+    public JmxCollector(File in, List<String> extraLabelsNames, List<String> extraLabelsValues) throws IOException, MalformedObjectNameException {
+        configFile = in;
+        config = loadConfig((Map<String, Object>)new Yaml().load(new FileReader(in)));
+        config.lastUpdate = configFile.lastModified();
+
+        this.extraLabelsNames = extraLabelsNames;
+        this.extraLabelsValues = extraLabelsValues;
+    }
 
     public JmxCollector(File in) throws IOException, MalformedObjectNameException {
         configFile = in;
@@ -308,6 +321,9 @@ public class JmxCollector extends Collector implements Collector.Describable {
         new HashMap<String, MetricFamilySamples>();
 
       Config config;
+      private List<String> extraLabelsNames;
+      private List<String> extraLabelsValues;
+
       MatchedRulesCache.StalenessTracker stalenessTracker;
 
       private static final char SEP = '_';
@@ -315,6 +331,13 @@ public class JmxCollector extends Collector implements Collector.Describable {
       Receiver(Config config, MatchedRulesCache.StalenessTracker stalenessTracker) {
         this.config = config;
         this.stalenessTracker = stalenessTracker;
+      }
+
+      Receiver(Config config, MatchedRulesCache.StalenessTracker stalenessTracker, List<String> extraLabelsNames, List<String> extraLabelsValues) {
+        this.config = config;
+        this.stalenessTracker = stalenessTracker;
+        this.extraLabelsNames = extraLabelsNames;
+        this.extraLabelsValues = extraLabelsValues;
       }
 
       // [] and () are special in regexes, so swtich to <>.
@@ -518,7 +541,23 @@ public class JmxCollector extends Collector implements Collector.Describable {
 
         // Add to samples.
         LOGGER.fine("add metric sample: " + matchedRule.name + " " + matchedRule.labelNames + " " + matchedRule.labelValues + " " + value.doubleValue());
-        addSample(new MetricFamilySamples.Sample(matchedRule.name, matchedRule.labelNames, matchedRule.labelValues, value.doubleValue()), matchedRule.type, help);
+
+        List<String> fullLabelsNames = new ArrayList<String>();
+
+        if (extraLabelsNames != null) {
+          fullLabelsNames.addAll(extraLabelsNames);
+        }
+
+        fullLabelsNames.addAll(matchedRule.labelNames);
+
+        List<String> fullLabelsValues = new ArrayList<>();
+
+        if (extraLabelsValues != null) {
+          fullLabelsValues.addAll(extraLabelsValues);
+        }
+        fullLabelsValues.addAll(matchedRule.labelValues);
+
+        addSample(new MetricFamilySamples.Sample(matchedRule.name, fullLabelsNames, fullLabelsValues, value.doubleValue()), matchedRule.type, help);
       }
 
     }
@@ -529,9 +568,19 @@ public class JmxCollector extends Collector implements Collector.Describable {
       Config config = getLatestConfig();
 
       MatchedRulesCache.StalenessTracker stalenessTracker = new MatchedRulesCache.StalenessTracker();
-      Receiver receiver = new Receiver(config, stalenessTracker);
+
+      Receiver receiver;
+
+      if ((this.extraLabelsNames != null) && (this.extraLabelsValues != null)) {
+        receiver = new Receiver(config, stalenessTracker, extraLabelsNames, extraLabelsValues);
+      } else {
+        receiver = new Receiver(config, stalenessTracker);
+      }
       JmxScraper scraper = new JmxScraper(config.jmxUrl, config.username, config.password, config.ssl,
-              config.whitelistObjectNames, config.blacklistObjectNames, receiver, jmxMBeanPropertyCache);
+                                          config.whitelistObjectNames,
+                                          config.blacklistObjectNames,
+                                          receiver,
+                                          jmxMBeanPropertyCache);
       long start = System.nanoTime();
       double error = 0;
       if ((config.startDelaySeconds > 0) &&
